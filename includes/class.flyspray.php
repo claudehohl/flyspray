@@ -693,6 +693,7 @@ class Flyspray
         }
 
 	// skip password check if the user is using oauth
+	$pwOk=false; $newpwhash=false;
 	if( $method == 'oauth' ){
 		$pwOk = true;
 	} elseif( $method == 'ldap' ){
@@ -700,12 +701,22 @@ class Flyspray
 	} else{
 		switch (strlen($auth_details['user_pass'])) {
 		case 40:
-			$password = sha1($password);
-			$pwOk = ($password === $auth_details['user_pass']);
+			$pwhash = sha1($password);
+			$pwOk = ($pwhash === $auth_details['user_pass']);
+			
+			# upgrade to stronger hash when possible
+			if($pwOk && $conf['general']['passwdcrypt'] !='sha1' && $conf['general']['passwdcrypt'] !='md5'){
+				$newpwhash=Flyspray::cryptPassword($password);
+			}
 			break;
 		case 32:
-			$password = md5($password);
-			$pwOk = ($password === $auth_details['user_pass']);
+			$pwhash = md5($password);
+			$pwOk = ($pwhash === $auth_details['user_pass']);
+
+			# upgrade to stronger hash when possible
+			if($pwOk && $conf['general']['passwdcrypt'] !='sha1' && $conf['general']['passwdcrypt'] !='md5'){
+				$newpwhash=Flyspray::cryptPassword($password);
+			}
 			break;
 		default:
 			#$password = crypt($password, $auth_details['user_pass']); //using the salt from db
@@ -714,6 +725,9 @@ class Flyspray
 			break;
 		}
 	}
+
+	# TODO later: store upgraded $newpwhash
+	#if($newpwhash){ $db->Query('UPDATE {users} ... }
 
 	if ($auth_details['lock_until'] > 0 && $auth_details['lock_until'] < time()) {
             $db->Query('UPDATE {users} SET lock_until = 0, account_enabled = 1, login_attempts = 0
