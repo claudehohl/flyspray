@@ -693,35 +693,35 @@ class Flyspray
         }
 
 	// skip password check if the user is using oauth
-	$pwOk=false; $newpwhash=false;
+	$pwok=false; $newpwhash=false;
 	if( $method == 'oauth' ){
-		$pwOk = true;
+		$pwok = true;
 	} elseif( $method == 'ldap' ){
-		$pwOk = Flyspray::checkForLDAPUser($username, $password);
+		$pwok = Flyspray::checkForLDAPUser($username, $password);
 	} else{
 		switch (strlen($auth_details['user_pass'])) {
 		case 40:
 			$pwhash = sha1($password);
-			$pwOk = ($pwhash === $auth_details['user_pass']);
+			$pwok = ($pwhash === $auth_details['user_pass']);
 			
 			# upgrade to stronger hash when possible
-			if($pwOk && $conf['general']['passwdcrypt'] !='sha1' && $conf['general']['passwdcrypt'] !='md5'){
+			if($pwok && $conf['general']['passwdcrypt'] !='sha1' && $conf['general']['passwdcrypt'] !='md5'){
 				$newpwhash=Flyspray::cryptPassword($password);
 			}
 			break;
 		case 32:
 			$pwhash = md5($password);
-			$pwOk = ($pwhash === $auth_details['user_pass']);
+			$pwok = ($pwhash === $auth_details['user_pass']);
 
 			# upgrade to stronger hash when possible
-			if($pwOk && $conf['general']['passwdcrypt'] !='sha1' && $conf['general']['passwdcrypt'] !='md5'){
+			if($pwok && $conf['general']['passwdcrypt'] !='sha1' && $conf['general']['passwdcrypt'] !='md5'){
 				$newpwhash=Flyspray::cryptPassword($password);
 			}
 			break;
 		default:
 			#$password = crypt($password, $auth_details['user_pass']); //using the salt from db
 			# autodetects used algorithm (e.g. $2y$12$hash is bcrypt with cost 12)
-			$pwOK = password_verify($password, $auth_details['user_pass']); # timing safe compare pw with hash
+			$pwok = password_verify($password, $auth_details['user_pass']); # timing safe compare pw with hash
 			break;
 		}
 	}
@@ -737,10 +737,10 @@ class Flyspray
 	}
 
         // Admin users cannot be disabled
-        if ($auth_details['group_id'] == 1 /* admin */ && $pwOk) {
+        if ($auth_details['group_id'] == 1 /* admin */ && $pwok) {
             return $auth_details['user_id'];
         }
-        if ($pwOk && $auth_details['account_enabled'] == '1' && $auth_details['group_open'] == '1'){
+        if ($pwok && $auth_details['account_enabled'] == '1' && $auth_details['group_open'] == '1'){
             return $auth_details['user_id'];
         }
 
