@@ -641,9 +641,21 @@ class Flyspray
         } elseif (strtolower($pwcrypt) == 'md5') {
             return md5($password);
         } else {
-            return crypt($password);
+		# without param produces only salted md5..
+		#return crypt($password); 
+
+		# 12 or 13: under 1 sec on a average computer in 2016
+		#       16:      ~5 sec on a average computer in 2016
+		$passwdcost = (
+			   isset($conf['general']['passwdcost'])
+			&& is_numeric($conf['general']['passwdcost'])
+			&& $conf['general']['passwdcost'] >= 4
+			) ? $conf['general']['passwdcost'] : 12;
+
+		return password_hash($password, PASSWORD_BCRYPT, array('cost'=>$passwdcost));
         }
     } // }}}
+    
     // {{{
     /**
      * Check if a user provided the right credentials
@@ -680,36 +692,35 @@ class Flyspray
             return 0;
         }
 
-        if( $method != 'ldap' ){
-        //encrypt the password with the method used in the db
-        switch (strlen($auth_details['user_pass'])) {
-            case 40:
-                $password = sha1($password);
-                break;
-            case 32:
-                $password = md5($password);
-                break;
-            default:
-                $password = crypt($password, $auth_details['user_pass']); //using the salt from db
-                break;
-        }
-        }
-        if ($auth_details['lock_until'] > 0 && $auth_details['lock_until'] < time()) {
+	// skip password check if the user is using oauth
+	if( $method == 'oauth' ){
+		$pwOk = true;
+	} elseif( $method == 'ldap' ){
+		$pwOk = Flyspray::checkForLDAPUser($username, $password);
+	} else{
+		switch (strlen($auth_details['user_pass'])) {
+		case 40:
+			$password = sha1($password);
+			$pwOk = ($password === $auth_details['user_pass']);
+			break;
+		case 32:
+			$password = md5($password);
+			$pwOk = ($password === $auth_details['user_pass']);
+			break;
+		default:
+			#$password = crypt($password, $auth_details['user_pass']); //using the salt from db
+			# autodetects used algorithm (e.g. $2y$12$hash is bcrypt with cost 12)
+			$pwOK = password_verify($password, $auth_details['user_pass']); # timing safe compare pw with hash
+			break;
+		}
+	}
+
+	if ($auth_details['lock_until'] > 0 && $auth_details['lock_until'] < time()) {
             $db->Query('UPDATE {users} SET lock_until = 0, account_enabled = 1, login_attempts = 0
                            WHERE user_id = ?', array($auth_details['user_id']));
             $auth_details['account_enabled'] = 1;
             $_SESSION['was_locked'] = true;
-        }
-
-        // skip password check if the user is using oauth
-        if($method == 'oauth'){
-            $pwOk = true;
-        } elseif( $method == 'ldap'){
-            $pwOk = Flyspray::checkForLDAPUser($username, $password);
-        }else{
-            // Compare the crypted password to the one in the database
-            $pwOk = ($password == $auth_details['user_pass']);
-        }
+	}
 
         // Admin users cannot be disabled
         if ($auth_details['group_id'] == 1 /* admin */ && $pwOk) {
